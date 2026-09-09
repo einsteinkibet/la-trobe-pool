@@ -7,8 +7,8 @@ services:
   - type: web
     name: unipool-backend
     runtime: node
-    plan: free                # free has an ephemeral disk that spins down;
-                              # upgrade to 'starter' for the persistent disk below to survive.
+    plan: starter             # REQUIRED: Render's free tier can't have a persistent disk.
+                              # Starter (~US$7/mo) gives the disk below so the SQLite DB survives.
     rootDir: backend
     buildCommand: npm install
     startCommand: node server.js
