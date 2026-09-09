@@ -915,6 +915,8 @@ api.get('/connections/:id/messages', requireAuth, (req, res) => {
   store.markMessagesRead(c.id, req.user.id); // reading the thread clears my unread
   const messages = store.messagesForConnection(c.id).map((m) => ({
     id: m.id, body: m.body, mine: m.sender_id === req.user.id, createdAt: m.createdAt,
+    // For my own messages: has the counterpart read it yet? (drives the ✓/✓✓ ticks)
+    read: !!m.read_at,
   }));
   res.json({ messages });
 });
@@ -928,7 +930,7 @@ api.post('/connections/:id/messages', requireAuth, (req, res) => {
   if (!body) return res.status(400).json({ error: 'Message cannot be empty' });
   if (body.length > 2000) return res.status(400).json({ error: 'Message too long (2000 char max)' });
   const m = store.addMessage(c.id, req.user.id, body);
-  res.status(201).json({ id: m.id, body: m.body, mine: true, createdAt: m.createdAt });
+  res.status(201).json({ id: m.id, body: m.body, mine: true, createdAt: m.createdAt, read: false });
 });
 
 // Recipient accepts or declines a pending request.

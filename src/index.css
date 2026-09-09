@@ -670,6 +670,9 @@ body {
 .chat-time { font-size: 0.62rem; opacity: 0.7; margin-top: 0.2rem; }
 .chat-bubble.mine .chat-time   { text-align: right; }
 .chat-bubble.theirs .chat-time { text-align: left; color: var(--gray-500); }
+/* Read receipts on my own messages: faint single ✓ = delivered, bright ✓✓ = read. */
+.chat-tick { margin-left: 0.3rem; font-size: 0.66rem; letter-spacing: -1px; opacity: 0.6; }
+.chat-tick.read { opacity: 1; color: #bff5e4; font-weight: 700; }
 .chat-composer {
   display: flex; gap: 0.5rem; align-items: center;
   padding: 0.6rem 0.25rem; border-top: 1px solid var(--gray-100); background: var(--gray-50);

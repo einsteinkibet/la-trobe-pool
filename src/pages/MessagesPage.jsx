@@ -115,7 +115,14 @@ const MessagesPage = ({ onBack, onNavigate, user, showToast, openConnectionId, o
             messages.map((m) => (
               <div key={m.id} className={`chat-bubble ${m.mine ? 'mine' : 'theirs'}`}>
                 <div>{m.body}</div>
-                <div className="chat-time">{timeLabel(m.createdAt)}</div>
+                <div className="chat-time">
+                  {timeLabel(m.createdAt)}
+                  {m.mine && (
+                    <span className={`chat-tick ${m.read ? 'read' : ''}`} title={m.read ? 'Read' : 'Delivered'}>
+                      {m.read ? '✓✓' : '✓'}
+                    </span>
+                  )}
+                </div>
               </div>
             ))
           )}
