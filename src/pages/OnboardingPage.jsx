@@ -30,7 +30,7 @@ const OnboardingPage = ({ onComplete }) => {
         </button>
       </div>
 
-      <div className="onboarding-content">
+      <div className="onboarding-content" key={slide}>
         <div className="onboarding-icon">{currentSlide.icon}</div>
         <h2 className="onboarding-title">{currentSlide.title}</h2>
         <p className="onboarding-desc">{currentSlide.desc}</p>

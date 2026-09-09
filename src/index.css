@@ -21,20 +21,26 @@
   --gray-700: #2b3733;
   --white: #ffffff;
   --shadow: 0 1px 3px rgba(14,18,21,0.08);
-  --shadow-md: 0 8px 24px rgba(14,18,21,0.12);
-  --radius: 16px;
-  --radius-sm: 10px;
+  --shadow-md: 0 10px 30px rgba(14,18,21,0.14);
+  --shadow-brand: 0 12px 30px rgba(14,164,122,0.30);
+  --radius: 18px;
+  --radius-sm: 12px;
   --radius-full: 9999px;
-  --brand-gradient: linear-gradient(155deg, #0e1215 0%, #0b5c45 62%, #0ea47a 100%);
+  --brand-gradient: linear-gradient(150deg, #0e1215 0%, #0b5c45 52%, #10c98d 100%);
+  --brand-gradient-vivid: linear-gradient(135deg, #059669 0%, #0ea47a 48%, #34d399 100%);
+  --amber-gradient: linear-gradient(135deg, #f59e0b 0%, #fbbf24 100%);
+  --violet-gradient: linear-gradient(135deg, #7c3aed 0%, #a78bfa 100%);
 }
 
 * { margin: 0; padding: 0; box-sizing: border-box; }
 
 body {
-  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
   background: var(--gray-50);
   color: var(--dark);
   -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+  letter-spacing: -0.011em;
   min-height: 100vh;
   /* Prevent pull-to-refresh on mobile */
   overscroll-behavior: none;
@@ -502,4 +508,146 @@ body {
 
 @media (min-width: 768px) {
   .pullers { grid-template-columns: repeat(4, 1fr); }
+}
+
+/* ==========================================================================
+   LIVELY / UBER-LIKE REFRESH — motion, glow, depth, gradient accents.
+   Everything below layers on top of the base styles above.
+   ========================================================================== */
+
+@keyframes floatY      { 0%,100% { transform: translateY(0); } 50% { transform: translateY(-10px); } }
+@keyframes fadeUp      { from { opacity: 0; transform: translateY(16px); } to { opacity: 1; transform: translateY(0); } }
+@keyframes popIn       { 0% { opacity: 0; transform: scale(0.9); } 60% { transform: scale(1.03); } 100% { opacity: 1; transform: scale(1); } }
+@keyframes gradientPan { 0% { background-position: 0% 50%; } 50% { background-position: 100% 50%; } 100% { background-position: 0% 50%; } }
+@keyframes blobDrift   { 0%,100% { transform: translate(0,0) scale(1); } 50% { transform: translate(20px,-24px) scale(1.15); } }
+@keyframes shine       { 0% { transform: translateX(-120%) skewX(-18deg); } 60%,100% { transform: translateX(320%) skewX(-18deg); } }
+
+/* ---- Splash: animated gradient, floating logo, glow blobs, staggered intro ---- */
+.splash {
+  position: relative;
+  overflow: hidden;
+  background: linear-gradient(150deg, #0e1215 0%, #0b5c45 52%, #10c98d 100%);
+  background-size: 220% 220%;
+  animation: gradientPan 14s ease infinite;
+}
+.splash::before, .splash::after {
+  content: '';
+  position: absolute;
+  border-radius: 50%;
+  filter: blur(60px);
+  opacity: 0.55;
+  z-index: 0;
+  pointer-events: none;
+}
+.splash::before { width: 320px; height: 320px; background: #34d399; top: -80px; right: -60px; animation: blobDrift 12s ease-in-out infinite; }
+.splash::after  { width: 260px; height: 260px; background: #0ea47a; bottom: -70px; left: -50px; animation: blobDrift 16s ease-in-out infinite reverse; }
+/* `both` fill applies the keyframe's `from` (opacity:0) during the stagger delay,
+   so we DON'T hard-set opacity:0 here — that would leave content invisible for
+   reduced-motion users (who get animation:none). */
+.splash > * { position: relative; z-index: 1; animation: fadeUp 0.6s ease both; }
+.splash > *:nth-child(1) { animation-delay: 0.05s; }
+.splash > *:nth-child(2) { animation-delay: 0.15s; }
+.splash > *:nth-child(3) { animation-delay: 0.25s; }
+.splash > *:nth-child(4) { animation-delay: 0.35s; }
+.splash > *:nth-child(5) { animation-delay: 0.45s; }
+.splash-logo { animation: floatY 4s ease-in-out infinite; filter: drop-shadow(0 12px 24px rgba(0,0,0,0.35)); }
+.splash h1 { letter-spacing: -0.03em; }
+.splash .btn-primary { background: #fff; color: var(--ink); box-shadow: 0 12px 30px rgba(0,0,0,0.28); }
+.splash .btn-primary:hover { background: #f2fbf7; }
+
+/* ---- Onboarding: gentle float + fade per slide ---- */
+.onboarding { position: relative; overflow: hidden; background-size: 220% 220%; animation: gradientPan 16s ease infinite; }
+.onboarding-icon { animation: floatY 4s ease-in-out infinite; }
+.onboarding-content > * { animation: fadeUp 0.5s ease both; }
+
+/* ---- Hero: radial glow, subtle animated gradient, entrance ---- */
+.hero {
+  position: relative;
+  overflow: hidden;
+  background-size: 180% 180%;
+  animation: fadeUp 0.5s ease both, gradientPan 18s ease infinite;
+}
+.hero::before {
+  content: '';
+  position: absolute;
+  top: -60%; right: -20%;
+  width: 260px; height: 260px;
+  background: radial-gradient(circle, rgba(52,211,153,0.55) 0%, transparent 70%);
+  filter: blur(10px);
+  pointer-events: none;
+}
+.hero > * { position: relative; z-index: 1; }
+.hero h2 { font-weight: 900; }
+
+/* ---- Entrance + hover for the dashboard cards ---- */
+.quick-actions .quick-card,
+.pullers .puller-card,
+.stats-row .stat-chip,
+.search-section,
+.card { animation: fadeUp 0.45s ease both; }
+.quick-actions .quick-card:nth-child(2) { animation-delay: 0.06s; }
+.quick-actions .quick-card:nth-child(3) { animation-delay: 0.12s; }
+.pullers .puller-card:nth-child(2) { animation-delay: 0.05s; }
+.pullers .puller-card:nth-child(3) { animation-delay: 0.10s; }
+.pullers .puller-card:nth-child(4) { animation-delay: 0.15s; }
+
+.quick-card { position: relative; overflow: hidden; }
+.quick-card:hover { transform: translateY(-4px); box-shadow: var(--shadow-md); }
+.quick-card-icon {
+  width: 54px; height: 54px; border-radius: 16px;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 1.7rem; margin-bottom: 0.75rem;
+  background: var(--primary-tint);
+}
+.quick-card.find .quick-card-icon { background: var(--brand-gradient-vivid); }
+.quick-card.map .quick-card-icon  { background: var(--violet-gradient); }
+.quick-card.offer .quick-card-icon{ background: var(--amber-gradient); }
+
+/* Gradient icon tiles + livelier hover on marketing pullers */
+.puller-icon { background: var(--brand-gradient-vivid); color: #fff; box-shadow: 0 6px 16px rgba(14,164,122,0.25); }
+.pullers .puller-card:nth-child(2) .puller-icon { background: var(--violet-gradient); box-shadow: 0 6px 16px rgba(124,58,237,0.22); }
+.pullers .puller-card:nth-child(3) .puller-icon { background: var(--amber-gradient); box-shadow: 0 6px 16px rgba(245,158,11,0.22); }
+.pullers .puller-card:nth-child(4) .puller-icon { background: linear-gradient(135deg,#0ea5e9,#38bdf8); box-shadow: 0 6px 16px rgba(14,165,233,0.22); }
+
+/* ---- Stat chips: gradient numbers ---- */
+.stat-chip { transition: transform 0.15s ease, box-shadow 0.15s ease; }
+.stat-chip:hover { transform: translateY(-2px); box-shadow: var(--shadow-md); }
+.stat-chip-value {
+  background: var(--brand-gradient-vivid);
+  -webkit-background-clip: text; background-clip: text;
+  -webkit-text-fill-color: transparent;
+  font-weight: 800;
+}
+
+/* ---- Buttons: gradient primary with a moving shine on hover ---- */
+.btn-primary {
+  background: var(--brand-gradient-vivid);
+  background-size: 160% 160%;
+  box-shadow: var(--shadow-brand);
+  position: relative;
+  overflow: hidden;
+}
+.btn-primary:hover { background-position: 100% 50%; }
+.btn-primary::after {
+  content: '';
+  position: absolute; top: 0; left: 0; width: 40%; height: 100%;
+  background: linear-gradient(90deg, transparent, rgba(255,255,255,0.35), transparent);
+  transform: translateX(-120%) skewX(-18deg);
+}
+.btn-primary:hover::after { animation: shine 0.9s ease; }
+
+/* ---- Bottom nav: springy active state + emerald pill ---- */
+.nav-item { position: relative; border-radius: 14px; transition: color 0.2s, transform 0.15s ease; }
+.nav-item.active { transform: translateY(-1px); }
+.nav-item.active .nav-item-icon { animation: popIn 0.3s ease; }
+.nav-item.active::before {
+  content: '';
+  position: absolute; top: 4px; left: 50%; transform: translateX(-50%);
+  width: 34px; height: 34px; border-radius: 12px;
+  background: var(--primary-tint); z-index: -1;
+}
+
+/* Respect users who prefer less motion. */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation: none !important; transition: none !important; }
 }
