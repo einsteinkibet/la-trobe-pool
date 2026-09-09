@@ -250,6 +250,21 @@ CREATE TABLE IF NOT EXISTS connection_trips (
 );
 `);
 
+// In-app chat — one thread per accepted connection so riders & drivers coordinate
+// entirely in the app (no phone/email exchange needed). read_at marks when the
+// recipient has seen a message (for unread badges).
+db.exec(`
+CREATE TABLE IF NOT EXISTS messages (
+  id             INTEGER PRIMARY KEY AUTOINCREMENT,
+  connection_id  INTEGER NOT NULL REFERENCES route_connections(id),
+  sender_id      INTEGER NOT NULL REFERENCES users(id),
+  body           TEXT NOT NULL,
+  createdAt      TEXT NOT NULL,
+  read_at        TEXT
+);
+CREATE INDEX IF NOT EXISTS idx_messages_conn ON messages(connection_id);
+`);
+
 // --- Payments schema (real money via Stripe at the edges; internal ledger for
 // the per-trip rider->driver escrow). ---
 // Stripe Connect account id for a driver's payouts.
@@ -619,7 +634,9 @@ const data = {
     db.pragma('foreign_keys = OFF');
     try {
       db.transaction(() => {
-        db.prepare(`DELETE FROM connection_trips WHERE connection_id IN (SELECT id FROM route_connections WHERE rider_id=? OR driver_id=? OR rider_route_id IN ${inList(routeIds)} OR driver_route_id IN ${inList(routeIds)})`).run(id, id);
+        const connSel = `SELECT id FROM route_connections WHERE rider_id=? OR driver_id=? OR rider_route_id IN ${inList(routeIds)} OR driver_route_id IN ${inList(routeIds)}`;
+        db.prepare(`DELETE FROM messages WHERE sender_id=? OR connection_id IN (${connSel})`).run(id, id, id);
+        db.prepare(`DELETE FROM connection_trips WHERE connection_id IN (${connSel})`).run(id, id);
         db.prepare(`DELETE FROM route_connections WHERE rider_id=? OR driver_id=? OR rider_route_id IN ${inList(routeIds)} OR driver_route_id IN ${inList(routeIds)}`).run(id, id);
         db.prepare(`DELETE FROM bookings WHERE riderId=? OR driverId=? OR rideId IN ${inList(rideIds)}`).run(id, id);
         db.prepare('DELETE FROM rides WHERE driverId=?').run(id);
@@ -879,6 +896,35 @@ const data = {
     db.prepare('UPDATE route_connections SET status = ?, respondedAt = ? WHERE id = ?')
       .run(status, new Date().toISOString(), id);
     return this.getConnection(id);
+  },
+
+  // --- in-app chat (one thread per connection) ---
+  addMessage(connectionId, senderId, body) {
+    const createdAt = new Date().toISOString();
+    const info = db.prepare('INSERT INTO messages (connection_id, sender_id, body, createdAt) VALUES (?, ?, ?, ?)')
+      .run(connectionId, senderId, body, createdAt);
+    return db.prepare('SELECT * FROM messages WHERE id = ?').get(info.lastInsertRowid);
+  },
+  messagesForConnection: (connectionId) =>
+    db.prepare('SELECT * FROM messages WHERE connection_id = ? ORDER BY id ASC').all(connectionId),
+  // Mark all messages the reader DIDN'T send as read (they've now seen them).
+  markMessagesRead(connectionId, readerId) {
+    db.prepare("UPDATE messages SET read_at = ? WHERE connection_id = ? AND sender_id != ? AND read_at IS NULL")
+      .run(new Date().toISOString(), connectionId, readerId);
+  },
+  // Unread counts for this user across all their connections: { connId: n }.
+  unreadByConnectionForUser(userId) {
+    const rows = db.prepare(`
+      SELECT m.connection_id AS cid, COUNT(*) AS n
+      FROM messages m
+      JOIN route_connections c ON c.id = m.connection_id
+      WHERE (c.rider_id = ? OR c.driver_id = ?)
+        AND m.sender_id != ? AND m.read_at IS NULL
+      GROUP BY m.connection_id
+    `).all(userId, userId, userId);
+    const map = {};
+    for (const r of rows) map[r.cid] = r.n;
+    return map;
   },
 
   // --- recurring trips on a connection ---

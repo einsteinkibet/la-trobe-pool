@@ -214,6 +214,18 @@ export const connectionsApi = {
 };
 
 /**
+ * In-app chat — one thread per accepted connection (chat-only; no phone/email
+ * is shared). Messages: { id, body, mine, createdAt }.
+ */
+export const messagesApi = {
+  list: (connectionId) => apiRequest(`/connections/${connectionId}/messages`),
+  send: (connectionId, body) =>
+    apiRequest(`/connections/${connectionId}/messages`, { method: 'POST', body: JSON.stringify({ body }) }),
+  // { total, byConnection } — for the nav badge.
+  unread: () => apiRequest('/messages/unread'),
+};
+
+/**
  * Payments (Stripe) — money in (wallet top-up) and out (driver payout). All
  * gated on the backend having STRIPE_SECRET_KEY (else 503 PAYMENTS_DISABLED).
  */
@@ -373,6 +385,7 @@ export default {
   rides: ridesApi,
   routes: routesApi,
   connections: connectionsApi,
+  messages: messagesApi,
   payments: paymentsApi,
   geocode: geocodeApi,
   bookings: bookingsApi,

@@ -11,6 +11,7 @@ const LoginPage = ({ onBack, onLogin, showToast }) => {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [name, setName] = useState('');
+  const [phone, setPhone] = useState('');
   const [role, setRole] = useState('rider'); // 'rider' | 'driver'
   const [vehicleType, setVehicleType] = useState('sedan');
   const [loading, setLoading] = useState(false);
@@ -60,6 +61,7 @@ const LoginPage = ({ onBack, onLogin, showToast }) => {
         ? {
             email, password, name, university: 'La Trobe University',
             hasVehicle: role === 'driver',
+            ...(phone.trim() && { phone: phone.trim() }),
             ...(role === 'driver' && { vehicleType }),
           }
         : { email, password };
@@ -112,6 +114,22 @@ const LoginPage = ({ onBack, onLogin, showToast }) => {
                 placeholder="Your name"
               />
               {errors.name && <span className="form-error">{errors.name}</span>}
+            </div>
+          )}
+
+          {isRegister && (
+            <div className="form-group">
+              <label className="form-label">Phone <span style={{ color: '#94a3b8', fontWeight: 400 }}>(optional)</span></label>
+              <input
+                className="form-input"
+                type="tel"
+                value={phone}
+                onChange={(e) => setPhone(e.target.value)}
+                placeholder="e.g. 0400 123 456"
+              />
+              <span style={{ fontSize: '0.72rem', color: '#94a3b8' }}>
+                You&apos;ll chat in-app; a phone is just an optional backup for trip day. Not shared publicly.
+              </span>
             </div>
           )}
 

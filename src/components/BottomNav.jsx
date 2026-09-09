@@ -9,10 +9,11 @@ const NAV_ITEMS = [
   { id: 'find', icon: '🔍', label: 'Search' },
   { id: 'routes', icon: '🛣️', label: 'Routes' },
   { id: 'connections', icon: '🤝', label: 'Requests' },
-  { id: 'rides', icon: '📋', label: 'My Rides' },
+  { id: 'messages', icon: '💬', label: 'Chat' },
+  { id: 'rides', icon: '📋', label: 'Rides' },
 ];
 
-const BottomNav = ({ currentTab, onTabChange }) => {
+const BottomNav = ({ currentTab, onTabChange, unreadMessages = 0 }) => {
   return (
     <nav className="bottom-nav">
       {NAV_ITEMS.map(item => (
@@ -20,9 +21,13 @@ const BottomNav = ({ currentTab, onTabChange }) => {
           key={item.id}
           className={`nav-item ${currentTab === item.id ? 'active' : ''}`}
           onClick={() => onTabChange(item.id)}
+          style={{ position: 'relative' }}
         >
           <span className="nav-item-icon">{item.icon}</span>
           <span className="nav-item-label">{item.label}</span>
+          {item.id === 'messages' && unreadMessages > 0 && (
+            <span className="badge">{unreadMessages > 9 ? '9+' : unreadMessages}</span>
+          )}
         </button>
       ))}
     </nav>
@@ -32,6 +37,7 @@ const BottomNav = ({ currentTab, onTabChange }) => {
 BottomNav.propTypes = {
   currentTab: PropTypes.string.isRequired,
   onTabChange: PropTypes.func.isRequired,
+  unreadMessages: PropTypes.number,
 };
 
 export default BottomNav;

@@ -799,7 +799,8 @@ const sharedDaysBetween = (mine, theirs) => {
 };
 
 // Shape a stored connection for the client, from the perspective of `meId`.
-const decorateConnection = (c, meId) => {
+// `unreadMap` (connId -> count) is optional; pass it to avoid an N+1 query.
+const decorateConnection = (c, meId, unreadMap = null) => {
   const iAmDriver = c.driver_id === meId;
   const counterpartId = iAmDriver ? c.rider_id : c.driver_id;
   const counterpart = userById(counterpartId);
@@ -822,6 +823,8 @@ const decorateConnection = (c, meId) => {
       : null,
     sharedDays: myRoute && theirRoute ? sharedDaysBetween(myRoute, theirRoute) : [],
     direction: theirRoute?.direction ?? null,
+    // Unread chat messages from the counterpart on this connection.
+    unread: unreadMap ? (unreadMap[c.id] || 0) : (accepted ? store.unreadByConnectionForUser(meId)[c.id] || 0 : 0),
     counterpart: counterpart
       ? {
           id: counterpart.id,
@@ -832,8 +835,8 @@ const decorateConnection = (c, meId) => {
           vehicleType: iAmDriver ? null : counterpart.vehicleType,
           // Approximate location only until accepted.
           suburb: theirRoute?.origin?.suburb ?? theirRoute?.origin?.name ?? null,
-          // Contact details are revealed ONLY once both sides have agreed.
-          contact: accepted ? { phone: counterpart.phone || null, email: counterpart.email } : null,
+          // Chat-only: coordination happens via in-app messages, so we never
+          // expose the counterpart's phone/email.
         }
       : null,
   };
@@ -876,7 +879,49 @@ api.post('/routes/:id/connect', requireAuth, requireVerified, (req, res) => {
 
 // All my connections (incoming requests + ones I sent), newest first.
 api.get('/connections', requireAuth, (req, res) => {
-  res.json(store.connectionsForUser(req.user.id).map((c) => decorateConnection(c, req.user.id)));
+  const unread = store.unreadByConnectionForUser(req.user.id);
+  res.json(store.connectionsForUser(req.user.id).map((c) => decorateConnection(c, req.user.id, unread)));
+});
+
+// Total unread chat messages across all my connections (for the nav badge).
+api.get('/messages/unread', requireAuth, (req, res) => {
+  const map = store.unreadByConnectionForUser(req.user.id);
+  res.json({ total: Object.values(map).reduce((s, n) => s + n, 0), byConnection: map });
+});
+
+// --- In-app chat on a connection (accepted parties only) ---
+const loadMyConnection = (req, res) => {
+  const c = store.getConnection(Number(req.params.id));
+  if (!c) { res.status(404).json({ error: 'Connection not found' }); return null; }
+  if (c.rider_id !== req.user.id && c.driver_id !== req.user.id) {
+    res.status(403).json({ error: 'Not your connection', code: 'FORBIDDEN' });
+    return null;
+  }
+  return c;
+};
+
+api.get('/connections/:id/messages', requireAuth, (req, res) => {
+  const c = loadMyConnection(req, res);
+  if (!c) return;
+  if (c.status !== 'accepted')
+    return res.status(409).json({ error: 'Chat opens once the request is accepted', code: 'NOT_ACCEPTED' });
+  store.markMessagesRead(c.id, req.user.id); // reading the thread clears my unread
+  const messages = store.messagesForConnection(c.id).map((m) => ({
+    id: m.id, body: m.body, mine: m.sender_id === req.user.id, createdAt: m.createdAt,
+  }));
+  res.json({ messages });
+});
+
+api.post('/connections/:id/messages', requireAuth, (req, res) => {
+  const c = loadMyConnection(req, res);
+  if (!c) return;
+  if (c.status !== 'accepted')
+    return res.status(409).json({ error: 'Chat opens once the request is accepted', code: 'NOT_ACCEPTED' });
+  const body = (req.body?.body || '').trim();
+  if (!body) return res.status(400).json({ error: 'Message cannot be empty' });
+  if (body.length > 2000) return res.status(400).json({ error: 'Message too long (2000 char max)' });
+  const m = store.addMessage(c.id, req.user.id, body);
+  res.status(201).json({ id: m.id, body: m.body, mine: true, createdAt: m.createdAt });
 });
 
 // Recipient accepts or declines a pending request.

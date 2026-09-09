@@ -19,7 +19,7 @@ import SchedulePage from './pages/SchedulePage';
 import SettingsPage from './pages/SettingsPage';
 import VerificationPage from './pages/VerificationPage';
 import AdminPage from './pages/AdminPage';
-import { userApi, paymentsApi } from './utils/api';
+import { userApi, paymentsApi, messagesApi } from './utils/api';
 
 // Shared components
 import BottomNav from './components/BottomNav';
@@ -50,6 +50,14 @@ function App() {
   // UI state
   const [initialParams, setInitialParams] = useState({});
 
+  // Unread chat count for the nav badge.
+  const [unreadMsgs, setUnreadMsgs] = useState(0);
+
+  const refreshUnread = () => {
+    if (!localStorage.getItem('token')) return;
+    messagesApi.unread().then((r) => setUnreadMsgs(r?.total || 0)).catch(() => {});
+  };
+
   // ========== Effects ==========
 
   // Load saved auth on mount
@@ -79,11 +87,20 @@ function App() {
   // Keep verification/balance fresh when the student returns to the tab (e.g. an
   // admin verified them in another window while this one was open).
   useEffect(() => {
-    const onFocus = () => refreshUser();
+    const onFocus = () => { refreshUser(); refreshUnread(); };
     window.addEventListener('focus', onFocus);
     return () => window.removeEventListener('focus', onFocus);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  // Poll unread chat count for the nav badge (and refresh on tab change).
+  useEffect(() => {
+    if (!user) { setUnreadMsgs(0); return undefined; }
+    refreshUnread();
+    const t = setInterval(refreshUnread, 12000);
+    return () => clearInterval(t);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user, activeTab]);
 
   // Handle return from Stripe Checkout (top-up) / Connect onboarding. The redirect
   // is a full page load, so React state resets to splash — we restore the app to
@@ -136,6 +153,7 @@ function App() {
       setInitialParams(params);
       setActiveTab('find');
     } else {
+      setNavParams(params);       // e.g. { connectionId } to open a specific chat
       setActiveTab(targetTab);
     }
   };
@@ -239,7 +257,7 @@ function App() {
         return <AdminPage key="admin" {...pageProps} />;
 
       case 'messages':
-        return <MessagesPage key="messages" {...pageProps} />;
+        return <MessagesPage key="messages" {...pageProps} openConnectionId={navParams.connectionId} onRead={refreshUnread} />;
 
       case 'profile':
         return (
@@ -311,7 +329,7 @@ function App() {
         </main>
 
         {/* Bottom navigation */}
-        <BottomNav currentTab={activeTab} onTabChange={setActiveTab} />
+        <BottomNav currentTab={activeTab} onTabChange={setActiveTab} unreadMessages={unreadMsgs} />
 
         {/* Toast notification */}
         {toast && <div className="toast">{toast}</div>}

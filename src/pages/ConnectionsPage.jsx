@@ -242,14 +242,21 @@ const ConnectionsPage = ({ onBack, onNavigate, showToast, user }) => {
               <h4 style={{ marginBottom: '0.5rem' }}>Confirmed ({accepted.length})</h4>
               {accepted.map((c) => (
                 <Card key={c.id} c={c} tint="#eff6ff">
-                  <div style={{ marginTop: '0.5rem', fontSize: '0.8rem', background: '#fff', borderRadius: '0.4rem', padding: '0.5rem' }}>
-                    <div style={{ fontWeight: 600, marginBottom: '0.2rem' }}>Contact to arrange your trip:</div>
-                    {c.counterpart?.contact?.email && <div>✉️ {c.counterpart.contact.email}</div>}
-                    {c.counterpart?.contact?.phone
-                      ? <div>📱 {c.counterpart.contact.phone}</div>
-                      : <div style={{ color: '#999' }}>📱 No phone on file — reach them by email.</div>}
-                    <div style={{ color: '#888', marginTop: '0.35rem', fontSize: '0.72rem' }}>
-                      Agree your pickup time &amp; spot directly. Fares are paid in-app per trip below — the rider pays into escrow and releases it after the ride.
+                  <div style={{ marginTop: '0.5rem' }}>
+                    <button
+                      className="btn btn-sm btn-primary"
+                      style={{ width: '100%', position: 'relative' }}
+                      onClick={() => onNavigate?.('messages', { connectionId: c.id })}
+                    >
+                      💬 Message {c.counterpart?.name?.split(' ')[0] || 'student'}
+                      {c.unread > 0 && (
+                        <span style={{ marginLeft: '0.4rem', background: 'rgba(255,255,255,0.28)', borderRadius: 999, padding: '0.05rem 0.45rem', fontSize: '0.72rem' }}>
+                          {c.unread}
+                        </span>
+                      )}
+                    </button>
+                    <div style={{ color: '#888', marginTop: '0.4rem', fontSize: '0.72rem' }}>
+                      Arrange your pickup time &amp; spot in chat. Fares are paid in-app per trip below — the rider pays into escrow and releases it after the ride.
                     </div>
                   </div>
                   <TripsPanel connectionId={c.id} showToast={showToast} onNavigate={onNavigate} />
