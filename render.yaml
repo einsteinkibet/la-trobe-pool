@@ -1,0 +1,49 @@
+# Render Blueprint — deploys BOTH the backend and frontend on Render.
+# In Render: New + -> Blueprint -> pick this repo. Render reads this file.
+# After the first deploy, fill in the two `sync: false` vars (see comments).
+
+services:
+  # ---------- Backend: Node/Express + SQLite (persistent disk) ----------
+  - type: web
+    name: unipool-backend
+    runtime: node
+    plan: free                # free has an ephemeral disk that spins down;
+                              # upgrade to 'starter' for the persistent disk below to survive.
+    rootDir: backend
+    buildCommand: npm install
+    startCommand: node server.js
+    healthCheckPath: /api/routes
+    disk:
+      name: unipool-data
+      mountPath: /data
+      sizeGB: 1
+    envVars:
+      - key: NODE_VERSION
+        value: "22"
+      - key: DB_PATH
+        value: /data/data.db          # SQLite lives on the persistent disk
+      - key: SETTINGS_SECRET
+        generateValue: true           # Render generates a strong secret -> real encryption for the stored Stripe key
+      - key: CORS_ORIGINS
+        sync: false                   # SET AFTER frontend deploys: https://unipool-web.onrender.com
+      - key: APP_BASE_URL
+        sync: false                   # SET AFTER frontend deploys: https://unipool-web.onrender.com
+      # Stripe (optional now; add when ready, or enter the key via Admin -> Payments in the app)
+      - key: STRIPE_SECRET_KEY
+        sync: false
+      - key: STRIPE_WEBHOOK_SECRET
+        sync: false
+
+  # ---------- Frontend: static React/Vite bundle ----------
+  - type: web
+    name: unipool-web
+    runtime: static
+    buildCommand: npm install && npm run build
+    staticPublishPath: ./dist
+    envVars:
+      - key: VITE_API_URL
+        sync: false                   # SET BEFORE/at build: https://unipool-backend.onrender.com/api
+    routes:
+      - type: rewrite                 # SPA fallback so client-side nav works
+        source: /*
+        destination: /index.html
