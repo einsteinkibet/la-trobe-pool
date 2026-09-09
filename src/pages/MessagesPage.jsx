@@ -27,7 +27,10 @@ const MessagesPage = ({ onBack, onNavigate, user, showToast, openConnectionId, o
   const loadConvs = useCallback(async () => {
     try {
       const all = await connectionsApi.list();
-      setConvs((all || []).filter((c) => c.status === 'accepted'));
+      const accepted = (all || []).filter((c) => c.status === 'accepted');
+      // Most recently active conversation first (fall back to connection order).
+      accepted.sort((a, b) => (b.lastMessage?.createdAt || '').localeCompare(a.lastMessage?.createdAt || ''));
+      setConvs(accepted);
     } catch (e) { showToast?.(e.message || 'Could not load chats'); }
     setLoadingConvs(false);
   }, [showToast]);
@@ -163,16 +166,26 @@ const MessagesPage = ({ onBack, onNavigate, user, showToast, openConnectionId, o
               <div key={c.id} className="menu-item" onClick={() => setActiveId(c.id)}>
                 <div className="chat-avatar" style={{ width: 40, height: 40 }}>{name[0]?.toUpperCase() || 'U'}</div>
                 <div style={{ flex: 1, minWidth: 0 }}>
-                  <div style={{ fontWeight: 600, fontSize: '0.92rem' }}>
-                    {c.counterpart?.role === 'driver' ? '🚗' : '🧍'} {name}
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', gap: '0.5rem' }}>
+                    <span style={{ fontWeight: 600, fontSize: '0.92rem', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                      {c.counterpart?.role === 'driver' ? '🚗' : '🧍'} {name}
+                    </span>
+                    {c.lastMessage?.createdAt && (
+                      <span style={{ flex: '0 0 auto', fontSize: '0.68rem', color: '#b0b8bf' }}>{timeLabel(c.lastMessage.createdAt)}</span>
+                    )}
                   </div>
-                  <div style={{ fontSize: '0.75rem', color: '#94a3b8' }}>
-                    {c.meetPoint?.name ? `📍 ${c.meetPoint.name}` : 'Tap to chat'}
+                  <div style={{
+                    fontSize: '0.78rem', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
+                    color: c.unread > 0 ? 'var(--ink)' : '#94a3b8', fontWeight: c.unread > 0 ? 600 : 400,
+                  }}>
+                    {c.lastMessage
+                      ? `${c.lastMessage.mine ? 'You: ' : ''}${c.lastMessage.body}`
+                      : (c.meetPoint?.name ? `📍 ${c.meetPoint.name}` : 'Tap to say hi')}
                   </div>
                 </div>
                 {c.unread > 0 && (
                   <span style={{
-                    background: 'var(--danger)', color: '#fff', fontSize: '0.7rem', fontWeight: 700,
+                    flex: '0 0 auto', background: 'var(--danger)', color: '#fff', fontSize: '0.7rem', fontWeight: 700,
                     borderRadius: 999, minWidth: 20, textAlign: 'center', padding: '0.1rem 0.4rem',
                   }}>{c.unread}</span>
                 )}

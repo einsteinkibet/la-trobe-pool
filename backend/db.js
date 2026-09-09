@@ -907,6 +907,8 @@ const data = {
   },
   messagesForConnection: (connectionId) =>
     db.prepare('SELECT * FROM messages WHERE connection_id = ? ORDER BY id ASC').all(connectionId),
+  lastMessageForConnection: (connectionId) =>
+    db.prepare('SELECT * FROM messages WHERE connection_id = ? ORDER BY id DESC LIMIT 1').get(connectionId) || null,
   // Mark all messages the reader DIDN'T send as read (they've now seen them).
   markMessagesRead(connectionId, readerId) {
     db.prepare("UPDATE messages SET read_at = ? WHERE connection_id = ? AND sender_id != ? AND read_at IS NULL")

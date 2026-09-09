@@ -825,6 +825,13 @@ const decorateConnection = (c, meId, unreadMap = null) => {
     direction: theirRoute?.direction ?? null,
     // Unread chat messages from the counterpart on this connection.
     unread: unreadMap ? (unreadMap[c.id] || 0) : (accepted ? store.unreadByConnectionForUser(meId)[c.id] || 0 : 0),
+    // Last message preview for the chat list (accepted connections only).
+    lastMessage: accepted
+      ? (() => {
+          const m = store.lastMessageForConnection(c.id);
+          return m ? { body: m.body, mine: m.sender_id === meId, createdAt: m.createdAt } : null;
+        })()
+      : null,
     counterpart: counterpart
       ? {
           id: counterpart.id,
