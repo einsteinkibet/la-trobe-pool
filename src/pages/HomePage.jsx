@@ -10,13 +10,23 @@ import '../index.css';
  * pickup point. So the home screen points to Routes + the commuter map, with no
  * manual ride listings.
  */
-const HomePage = ({ onNavigate }) => {
+const HomePage = ({ onNavigate, user }) => {
+  const loggedIn = !!user;
   return (
     <>
-      {/* Hero Banner */}
+      {/* Hero Banner — personalised once logged in, marketing pitch for guests. */}
       <div className="hero">
-        <h2>Your ride to campus, matched for you.</h2>
-        <p>One student, one ride — we pair you with someone already going your way.</p>
+        {loggedIn ? (
+          <>
+            <h2>Welcome back{user?.name ? `, ${user.name.split(' ')[0]}` : ''} 👋</h2>
+            <p>Ready for your next trip to campus? Set or check your route below.</p>
+          </>
+        ) : (
+          <>
+            <h2>Your ride to campus, matched for you.</h2>
+            <p>One student, one ride — we pair you with someone already going your way.</p>
+          </>
+        )}
         <div className="hero-chips">
           <span className="hero-chip">🏫 La Trobe Bundoora</span>
           <span className="hero-chip">🤝 One rider per trip</span>
@@ -24,30 +34,34 @@ const HomePage = ({ onNavigate }) => {
         </div>
       </div>
 
-      {/* Why UniPool — customer pullers */}
-      <div className="section-eyebrow">Why students ride with us</div>
-      <div className="pullers">
-        <div className="puller-card">
-          <div className="puller-icon">🤝</div>
-          <div className="puller-title">Make friends</div>
-          <div className="puller-desc">Meet La Trobe students heading exactly your way.</div>
-        </div>
-        <div className="puller-card">
-          <div className="puller-icon">🛣️</div>
-          <div className="puller-title">On the way</div>
-          <div className="puller-desc">Matched with a driver already on your route — no big detours.</div>
-        </div>
-        <div className="puller-card">
-          <div className="puller-icon">⏱️</div>
-          <div className="puller-title">Skip the waiting bays</div>
-          <div className="puller-desc">Stop standing around for late buses and trams.</div>
-        </div>
-        <div className="puller-card">
-          <div className="puller-icon">🎓</div>
-          <div className="puller-title">Get to class early</div>
-          <div className="puller-desc">Reliable door-to-campus commutes, every single day.</div>
-        </div>
-      </div>
+      {/* Why UniPool — customer pullers. Marketing only: hidden once logged in. */}
+      {!loggedIn && (
+        <>
+          <div className="section-eyebrow">Why students ride with us</div>
+          <div className="pullers">
+            <div className="puller-card">
+              <div className="puller-icon">🤝</div>
+              <div className="puller-title">Make friends</div>
+              <div className="puller-desc">Meet La Trobe students heading exactly your way.</div>
+            </div>
+            <div className="puller-card">
+              <div className="puller-icon">🛣️</div>
+              <div className="puller-title">On the way</div>
+              <div className="puller-desc">Matched with a driver already on your route — no big detours.</div>
+            </div>
+            <div className="puller-card">
+              <div className="puller-icon">⏱️</div>
+              <div className="puller-title">Skip the waiting bays</div>
+              <div className="puller-desc">Stop standing around for late buses and trams.</div>
+            </div>
+            <div className="puller-card">
+              <div className="puller-icon">🎓</div>
+              <div className="puller-title">Get to class early</div>
+              <div className="puller-desc">Reliable door-to-campus commutes, every single day.</div>
+            </div>
+          </div>
+        </>
+      )}
 
       {/* Primary actions — set a route or browse the map */}
       <div className="quick-actions">
@@ -111,6 +125,7 @@ const HomePage = ({ onNavigate }) => {
 
 HomePage.propTypes = {
   onNavigate: PropTypes.func.isRequired,
+  user: PropTypes.object,
 };
 
 export default HomePage;

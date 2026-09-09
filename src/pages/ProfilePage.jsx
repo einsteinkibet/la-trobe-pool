@@ -33,7 +33,11 @@ const ProfilePage = ({ onBack, onNavigate, onLogout, user, guest, showToast, set
   const vLabel = { approved: '✅ Verified', pending: '⏳ Under review', rejected: '❌ Rejected', unverified: '🪪 Verify now' }[vStatus];
 
   const menu = [
-    { icon: '🪪', text: 'Student verification', badge: vLabel, go: () => onNavigate?.('verification') },
+    // Verified students have nothing to do here — the verified badge below covers
+    // it. Only show the verification entry while there's still action to take.
+    ...(vStatus !== 'approved'
+      ? [{ icon: '🪪', text: 'Student verification', badge: vLabel, go: () => onNavigate?.('verification') }]
+      : []),
     { icon: '💳', text: 'Wallet & payments', go: () => onNavigate?.('wallet') },
     ...(isDriver ? [{ icon: '💸', text: 'Set up payouts', badge: 'Driver', go: () => onNavigate?.('wallet') }] : []),
     { icon: '📅', text: 'My campus schedule', go: () => onNavigate?.('schedule') },
@@ -54,6 +58,15 @@ const ProfilePage = ({ onBack, onNavigate, onLogout, user, guest, showToast, set
         <div className="profile-avatar">{user?.name?.[0]?.toUpperCase() || (guest ? 'G' : 'U')}</div>
         <div className="profile-name">{user?.name || (guest ? 'Guest User' : 'La Trobe Student')}</div>
         <div className="profile-info">{user?.email || 'Tap to login for full access'}</div>
+        {!guest && vStatus === 'approved' && (
+          <div style={{
+            display: 'inline-flex', alignItems: 'center', gap: '0.3rem', marginTop: '0.5rem',
+            background: 'rgba(255,255,255,0.18)', color: '#fff', borderRadius: '999px',
+            padding: '0.2rem 0.7rem', fontSize: '0.78rem', fontWeight: 600,
+          }}>
+            ✅ Verified student
+          </div>
+        )}
         {!guest && user && (
           <div className="profile-stats">
             <div>

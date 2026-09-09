@@ -605,7 +605,39 @@ const data = {
   getUser: (id) => rowToUser(stmts.userById.get(id)),
   getUserByEmail: (email) => rowToUser(stmts.userByEmail.get((email || '').toLowerCase())),
   allUsers: () => stmts.allUsers.all().map(rowToUser),
-  deleteUser: (id) => stmts.deleteUser.run(id),
+  // Cascade-delete a user and everything tied to them. These child tables were
+  // created without ON DELETE CASCADE, so a plain DELETE users hit a FOREIGN KEY
+  // constraint (any user who'd created a route could never delete their account).
+  // We clear the whole graph in one transaction. FK enforcement is toggled off
+  // for the duration so intra-graph ordering can't trip us up — better-sqlite3 is
+  // synchronous, so nothing else runs in between (pragma must be set outside the
+  // transaction; it's a no-op inside one).
+  deleteUser: (id) => {
+    const routeIds = db.prepare('SELECT id FROM routes WHERE user_id = ?').all(id).map((r) => r.id);
+    const rideIds = db.prepare('SELECT id FROM rides WHERE driverId = ?').all(id).map((r) => r.id);
+    const inList = (arr) => (arr.length ? `(${arr.join(',')})` : '(NULL)');
+    db.pragma('foreign_keys = OFF');
+    try {
+      db.transaction(() => {
+        db.prepare(`DELETE FROM connection_trips WHERE connection_id IN (SELECT id FROM route_connections WHERE rider_id=? OR driver_id=? OR rider_route_id IN ${inList(routeIds)} OR driver_route_id IN ${inList(routeIds)})`).run(id, id);
+        db.prepare(`DELETE FROM route_connections WHERE rider_id=? OR driver_id=? OR rider_route_id IN ${inList(routeIds)} OR driver_route_id IN ${inList(routeIds)}`).run(id, id);
+        db.prepare(`DELETE FROM bookings WHERE riderId=? OR driverId=? OR rideId IN ${inList(rideIds)}`).run(id, id);
+        db.prepare('DELETE FROM rides WHERE driverId=?').run(id);
+        db.prepare(`DELETE FROM route_days WHERE route_id IN ${inList(routeIds)}`).run();
+        db.prepare(`DELETE FROM trip_occurrences WHERE route_id IN ${inList(routeIds)}`).run();
+        db.prepare('DELETE FROM routes WHERE user_id=?').run(id);
+        db.prepare('DELETE FROM reviews WHERE byUserId=? OR aboutUserId=?').run(id, id);
+        db.prepare('DELETE FROM schedules WHERE userId=?').run(id);
+        db.prepare('DELETE FROM verifications WHERE userId=?').run(id);
+        db.prepare('DELETE FROM tokens WHERE userId=?').run(id);
+        db.prepare('DELETE FROM ledger WHERE user_id=?').run(id);
+        db.prepare('DELETE FROM stripe_topups WHERE user_id=?').run(id);
+        db.prepare('DELETE FROM users WHERE id=?').run(id);
+      })();
+    } finally {
+      db.pragma('foreign_keys = ON');
+    }
+  },
   // Persist a single edited field on a user (mirrors mutating req.user in place).
   setUserField(id, field, value) {
     const col = {

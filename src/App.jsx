@@ -62,11 +62,27 @@ function App() {
         const parsedUser = JSON.parse(savedUser);
         setUser(parsedUser);
         setIsGuest(false);
+        // A logged-in student skips the splash/onboarding marketing and lands
+        // straight on the home page.
+        setScreen('main');
+        // Re-sync from the server so changes made elsewhere (e.g. an admin
+        // approving this student's ID) take effect without a re-login.
+        refreshUser();
       } catch (e) {
         localStorage.removeItem('token');
         localStorage.removeItem('user');
       }
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // Keep verification/balance fresh when the student returns to the tab (e.g. an
+  // admin verified them in another window while this one was open).
+  useEffect(() => {
+    const onFocus = () => refreshUser();
+    window.addEventListener('focus', onFocus);
+    return () => window.removeEventListener('focus', onFocus);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   // Handle return from Stripe Checkout (top-up) / Connect onboarding. The redirect
@@ -186,7 +202,7 @@ function App() {
 
     switch (activeTab) {
       case 'home':
-        return <HomePage key="home" onNavigate={navigate} />;
+        return <HomePage key="home" onNavigate={navigate} user={user} />;
       
       case 'find':
         return <FindRidePage key="find" {...pageProps} initialParams={initialParams} />;
@@ -238,7 +254,7 @@ function App() {
         );
       
       default:
-        return <HomePage key="home" onNavigate={navigate} />;
+        return <HomePage key="home" onNavigate={navigate} user={user} />;
     }
   };
 
