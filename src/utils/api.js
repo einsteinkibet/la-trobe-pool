@@ -22,6 +22,19 @@ const apiRequest = async (endpoint, options = {}) => {
   
   try {
     const response = await fetch(`${API_URL}${endpoint}`, config);
+    // Guard against a misconfigured API base (e.g. VITE_API_URL unset in prod, so
+    // /api/* hits the SPA fallback and returns index.html with a 200). Without this
+    // the HTML parses to {} and callers like login treat it as success.
+    const contentType = response.headers.get('content-type') || '';
+    if (!contentType.includes('application/json')) {
+      const err = new Error(
+        response.ok
+          ? 'Server did not return JSON — check the API URL (VITE_API_URL) points at the backend.'
+          : `Request failed (${response.status})`
+      );
+      err.status = response.status;
+      throw err;
+    }
     const data = await response.json().catch(() => ({}));
 
     if (!response.ok) {

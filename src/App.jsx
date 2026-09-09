@@ -153,8 +153,9 @@ function App() {
   const refreshUser = async () => {
     if (!localStorage.getItem('token')) return;
     try {
-      const { user: fresh } = await userApi.getProfile();
-      applyUser(fresh);
+      // GET /users/me returns a FLAT user object (not { user }); tolerate both.
+      const res = await userApi.getProfile();
+      applyUser(res?.user || res);
     } catch { /* token may be stale; ignore */ }
   };
 

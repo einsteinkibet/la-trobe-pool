@@ -65,10 +65,17 @@ const LoginPage = ({ onBack, onLogin, showToast }) => {
         : { email, password };
       
       const result = await authApi[endpoint](body);
-      
+
+      // Never enter a half-logged-in state: if the response is missing a token or
+      // user, treat it as a failure instead of storing undefined and flipping the
+      // UI to "logged in" (which then dead-ends on pages that need `user`).
+      if (!result?.token || !result?.user) {
+        throw new Error('Unexpected response from server. Please try again.');
+      }
+
       localStorage.setItem('token', result.token);
       localStorage.setItem('user', JSON.stringify(result.user));
-      
+
       onLogin?.(result.user);
       showToast?.(isRegister ? 'Welcome! Account created!' : 'Login successful!');
     } catch (err) {
