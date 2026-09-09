@@ -1313,8 +1313,8 @@ app.use('/api', api);
 
 app.use((_req, res) => res.status(404).json({ error: 'Not found' }));
 
-app.listen(PORT, () => {
-  console.log(`car-pool backend listening on http://localhost:${PORT}`);
+app.listen(PORT, '0.0.0.0', () => {
+  console.log(`car-pool backend listening on 0.0.0.0:${PORT}`);
   console.log(`Seed logins (password in parens):`);
   console.log(`  admin@latrobe.edu.au (admin123)  — admin + driver`);
   console.log(`  sarah@latrobe.edu.au (password)  — verified driver`);
