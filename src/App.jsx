@@ -18,6 +18,7 @@ import WalletPage from './pages/WalletPage';
 import SchedulePage from './pages/SchedulePage';
 import SettingsPage from './pages/SettingsPage';
 import VerificationPage from './pages/VerificationPage';
+import ReferralPage from './pages/ReferralPage';
 import AdminPage from './pages/AdminPage';
 import { userApi, paymentsApi, messagesApi } from './utils/api';
 
@@ -52,6 +53,15 @@ function App() {
 
   // Unread chat count for the nav badge.
   const [unreadMsgs, setUnreadMsgs] = useState(0);
+
+  // Referral code captured from a ?ref= invite link (prefilled into signup).
+  const [referralCode, setReferralCode] = useState(() => {
+    try {
+      const fromUrl = new URLSearchParams(window.location.search).get('ref');
+      if (fromUrl) { localStorage.setItem('pendingReferral', fromUrl); return fromUrl; }
+      return localStorage.getItem('pendingReferral') || '';
+    } catch { return ''; }
+  });
 
   const refreshUnread = () => {
     if (!localStorage.getItem('token')) return;
@@ -166,6 +176,9 @@ function App() {
     setIsGuest(false);
     setActiveTab('home');
     setScreen('main');
+    // A captured invite has now been consumed at signup.
+    localStorage.removeItem('pendingReferral');
+    setReferralCode('');
   };
 
   /**
@@ -253,6 +266,9 @@ function App() {
       case 'verification':
         return <VerificationPage key="verification" {...pageProps} onUserUpdate={applyUser} />;
 
+      case 'referrals':
+        return <ReferralPage key="referrals" {...pageProps} />;
+
       case 'admin':
         return <AdminPage key="admin" {...pageProps} />;
 
@@ -296,6 +312,7 @@ function App() {
           onBack={() => setScreen('main')}
           onLogin={handleLogin}
           showToast={showToast}
+          initialReferral={referralCode}
         />
         {toast && <div className="toast">{toast}</div>}
       </>

@@ -6,8 +6,9 @@ import '../index.css';
 /**
  * Login/Register page
  */
-const LoginPage = ({ onBack, onLogin, showToast }) => {
-  const [isRegister, setIsRegister] = useState(false);
+const LoginPage = ({ onBack, onLogin, showToast, initialReferral = '' }) => {
+  const [isRegister, setIsRegister] = useState(!!initialReferral);
+  const [referral, setReferral] = useState(initialReferral || '');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [name, setName] = useState('');
@@ -62,6 +63,7 @@ const LoginPage = ({ onBack, onLogin, showToast }) => {
             email, password, name, university: 'La Trobe University',
             hasVehicle: role === 'driver',
             ...(phone.trim() && { phone: phone.trim() }),
+            ...(referral.trim() && { referralCode: referral.trim() }),
             ...(role === 'driver' && { vehicleType }),
           }
         : { email, password };
@@ -130,6 +132,23 @@ const LoginPage = ({ onBack, onLogin, showToast }) => {
               <span style={{ fontSize: '0.72rem', color: '#94a3b8' }}>
                 You&apos;ll chat in-app; a phone is just an optional backup for trip day. Not shared publicly.
               </span>
+            </div>
+          )}
+
+          {isRegister && (
+            <div className="form-group">
+              <label className="form-label">Invite code <span style={{ color: '#94a3b8', fontWeight: 400 }}>(optional)</span></label>
+              <input
+                className="form-input"
+                type="text"
+                value={referral}
+                onChange={(e) => setReferral(e.target.value.toUpperCase())}
+                placeholder="e.g. AASS6N"
+                style={{ textTransform: 'uppercase', letterSpacing: '0.1em' }}
+              />
+              {initialReferral && (
+                <span style={{ fontSize: '0.72rem', color: 'var(--primary-dark)' }}>🎁 Invite applied — you&apos;re joining a friend on UniPool.</span>
+              )}
             </div>
           )}
 
@@ -233,6 +252,7 @@ LoginPage.propTypes = {
   onBack: PropTypes.func.isRequired,
   onLogin: PropTypes.func,
   showToast: PropTypes.func,
+  initialReferral: PropTypes.string,
 };
 
 export default LoginPage;

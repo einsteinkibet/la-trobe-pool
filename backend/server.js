@@ -249,7 +249,16 @@ api.post('/auth/register', (req, res) => {
   if (!email || !password || !name) return res.status(400).json({ error: 'Name, email and password are required' });
   if (store.getUserByEmail(email))
     return res.status(409).json({ error: 'An account with that email already exists', code: 'EMAIL_TAKEN' });
-  const user = makeUser(req.body);
+  let user = makeUser(req.body);
+  // Link the invite, if a valid referral code was supplied (can't refer yourself).
+  const refCode = (req.body?.referralCode || '').trim();
+  if (refCode) {
+    const referrer = store.getUserByReferralCode(refCode);
+    if (referrer && referrer.id !== user.id) {
+      store.setReferredBy(user.id, referrer.id);
+      user = store.getUser(user.id);
+    }
+  }
   const token = issueToken(user);
   res.status(201).json({ token, user: publicUser(user) });
 });
@@ -279,6 +288,18 @@ api.post('/auth/change-password', requireAuth, (req, res) => {
 // Users
 // ---------------------------------------------------------------------------
 api.get('/users/me', requireAuth, (req, res) => res.json(publicUser(req.user)));
+
+// My referral code, shareable link, and who I've invited so far.
+api.get('/referrals/me', requireAuth, (req, res) => {
+  const invited = store.referralsForUser(req.user.id);
+  const base = (process.env.APP_BASE_URL || `${req.protocol}://${req.get('host')}`).replace(/\/$/, '');
+  res.json({
+    code: req.user.referralCode,
+    link: `${base}/?ref=${req.user.referralCode}`,
+    count: invited.length,
+    invited: invited.map((u) => ({ name: u.name, joinedAt: u.createdAt })),
+  });
+});
 
 api.put('/users/me', requireAuth, (req, res) => {
   const editable = ['name', 'phone', 'avatar', 'vehicleType', 'vehicleSeats', 'hasVehicle', 'role', 'homeLocation'];

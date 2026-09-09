@@ -38,6 +38,7 @@ const ProfilePage = ({ onBack, onNavigate, onLogout, user, guest, showToast, set
     ...(vStatus !== 'approved'
       ? [{ icon: '🪪', text: 'Student verification', badge: vLabel, go: () => onNavigate?.('verification') }]
       : []),
+    { icon: '🎁', text: 'Invite friends', badge: 'Earn matches', go: () => onNavigate?.('referrals') },
     { icon: '💳', text: 'Wallet & payments', go: () => onNavigate?.('wallet') },
     ...(isDriver ? [{ icon: '💸', text: 'Set up payouts', badge: 'Driver', go: () => onNavigate?.('wallet') }] : []),
     { icon: '📅', text: 'My campus schedule', go: () => onNavigate?.('schedule') },

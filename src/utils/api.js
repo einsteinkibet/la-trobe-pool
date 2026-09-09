@@ -226,6 +226,13 @@ export const messagesApi = {
 };
 
 /**
+ * Referrals / invites. { code, link, count, invited:[{name, joinedAt}] }.
+ */
+export const referralsApi = {
+  me: () => apiRequest('/referrals/me'),
+};
+
+/**
  * Payments (Stripe) — money in (wallet top-up) and out (driver payout). All
  * gated on the backend having STRIPE_SECRET_KEY (else 503 PAYMENTS_DISABLED).
  */
@@ -386,6 +393,7 @@ export default {
   routes: routesApi,
   connections: connectionsApi,
   messages: messagesApi,
+  referrals: referralsApi,
   payments: paymentsApi,
   geocode: geocodeApi,
   bookings: bookingsApi,

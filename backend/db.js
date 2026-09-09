@@ -279,6 +279,30 @@ if (!hasColumn('connection_trips', 'escrow_status')) {
   db.exec("ALTER TABLE connection_trips ADD COLUMN escrow_status TEXT NOT NULL DEFAULT 'none'");
 }
 
+// --- Referral / invite system ---
+// referral_code: this user's own shareable code. referred_by: the id of whoever
+// invited them (set once, at signup).
+if (!hasColumn('users', 'referral_code')) db.exec('ALTER TABLE users ADD COLUMN referral_code TEXT');
+if (!hasColumn('users', 'referred_by')) db.exec('ALTER TABLE users ADD COLUMN referred_by INTEGER');
+db.exec('CREATE UNIQUE INDEX IF NOT EXISTS uniq_referral_code ON users(referral_code) WHERE referral_code IS NOT NULL');
+
+// Generate a short, unambiguous code (no 0/O/1/I) that isn't already taken.
+const genReferralCode = () => {
+  const alphabet = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+  const exists = db.prepare('SELECT 1 FROM users WHERE referral_code = ?');
+  for (let attempt = 0; attempt < 50; attempt += 1) {
+    let code = '';
+    for (let i = 0; i < 6; i += 1) code += alphabet[Math.floor(Math.random() * alphabet.length)];
+    if (!exists.get(code)) return code;
+  }
+  return `R${Date.now().toString(36).toUpperCase()}`; // fallback, effectively unique
+};
+
+// Backfill codes for any pre-existing users that don't have one yet.
+for (const row of db.prepare('SELECT id FROM users WHERE referral_code IS NULL').all()) {
+  db.prepare('UPDATE users SET referral_code = ? WHERE id = ?').run(genReferralCode(), row.id);
+}
+
 db.exec(`
 -- Money-movement history for a user's wallet (topup/spend/earning/refund/withdraw).
 CREATE TABLE IF NOT EXISTS ledger (
@@ -372,6 +396,8 @@ const rowToUser = (r) => {
     homeLocation: r.home_lat == null && r.home_lng == null && r.home_name == null
       ? null
       : { name: r.home_name, lat: r.home_lat, lng: r.home_lng },
+    referralCode: r.referral_code || null,
+    referredBy: r.referred_by || null,
     createdAt: r.createdAt,
   };
 };
@@ -615,10 +641,20 @@ const data = {
     const info = stmts.insertUser.run(toUserParams(u));
     const id = info.lastInsertRowid;
     stmts.insertVerificationDefault.run(id, u.verified ? 'verified' : 'unverified');
+    // Every user gets their own shareable referral code.
+    db.prepare('UPDATE users SET referral_code = ? WHERE id = ?').run(genReferralCode(), id);
     return rowToUser(stmts.userById.get(id));
   },
   getUser: (id) => rowToUser(stmts.userById.get(id)),
   getUserByEmail: (email) => rowToUser(stmts.userByEmail.get((email || '').toLowerCase())),
+  getUserByReferralCode: (code) =>
+    rowToUser(db.prepare('SELECT * FROM users WHERE referral_code = ?').get((code || '').toUpperCase())),
+  // Link a new user to whoever invited them (set once).
+  setReferredBy: (userId, referrerId) =>
+    db.prepare('UPDATE users SET referred_by = ? WHERE id = ?').run(referrerId, userId),
+  // Users this person has successfully invited (newest first).
+  referralsForUser: (userId) =>
+    db.prepare('SELECT id, name, createdAt FROM users WHERE referred_by = ? ORDER BY id DESC').all(userId),
   allUsers: () => stmts.allUsers.all().map(rowToUser),
   // Cascade-delete a user and everything tied to them. These child tables were
   // created without ON DELETE CASCADE, so a plain DELETE users hit a FOREIGN KEY
