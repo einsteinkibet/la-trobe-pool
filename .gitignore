@@ -1,1 +1,15 @@
+# deps & build output
+node_modules/
+dist/
+
+# local env / secrets
+.env
+.env.local
+*.local
+
+# deploy
 .vercel
+
+# misc
+xxx.py
+.DS_Store
