@@ -1,165 +1,232 @@
 import { useState, useEffect, useCallback } from 'react';
 import PropTypes from 'prop-types';
-import RideCard from '../components/RideCard';
 import Loading from '../components/Loading';
-import { ridesApi, bookingsApi, routesApi } from '../utils/api';
-import { LA_TROBE_CAMPUS } from '../utils/constants';
+import { routesApi } from '../utils/api';
 import '../index.css';
 
 /**
- * Find a Ride — this is a commute app, so a trip is always between the student's
- * home and La Trobe (no arbitrary from/to, no drop-offs in between). The user
- * only picks the DIRECTION; pickup/drop details are agreed on the phone later.
+ * Find a Ride — this is a commute app, so a "search" means: show the real route
+ * matches for one of MY routes (opposite-role commuters who share my days and are
+ * on my corridor), ranked by detour, with a system-suggested pickup point. This
+ * uses the SAME matching engine as Routes → View matches (GET /routes/matches),
+ * so what you see here is exactly what can be booked. (The old page queried the
+ * unused legacy `rides` table and always came up empty.)
  */
-const CAMPUS = LA_TROBE_CAMPUS.name;
+const GRADE_COLORS = { 'A+': '#16a34a', A: '#22c55e', B: '#84cc16', C: '#f59e0b', D: '#ef4444' };
 
 const FindRidePage = ({ onBack, onNavigate, user, showToast }) => {
-  const [direction, setDirection] = useState('to_campus'); // 'to_campus' | 'from_campus'
-  const [home, setHome] = useState(user?.homeLocation?.name || '');
-  const [date, setDate] = useState(new Date().toISOString().split('T')[0]);
-
-  const [rides, setRides] = useState([]);
+  const [routes, setRoutes] = useState([]);
+  const [selectedId, setSelectedId] = useState(null);
+  const [matches, setMatches] = useState([]);
+  const [loadingRoutes, setLoadingRoutes] = useState(true);
   const [loading, setLoading] = useState(false);
-  const [error, setError] = useState(null);
   const [hasSearched, setHasSearched] = useState(false);
+  const [requestedIds, setRequestedIds] = useState(new Set());
+  const [requestingId, setRequestingId] = useState(null);
 
-  // Resolve the student's home from their routes (most reliable) or profile.
+  // Load my routes — matching is always relative to one of my own routes.
   useEffect(() => {
-    if (!user) return;
-    if (home) return;
+    if (!user) { setLoadingRoutes(false); return; }
     routesApi.getMine()
       .then((rs) => {
-        const withOrigin = (rs || []).find((r) => r.origin?.name);
-        if (withOrigin) setHome(withOrigin.origin.name);
+        const active = (rs || []).filter((r) => r.status !== 'deleted');
+        setRoutes(active);
+        if (active.length) setSelectedId((prev) => prev ?? active[0].id);
       })
-      .catch(() => {});
-  }, [user, home]);
+      .catch((e) => showToast?.(e.message || 'Could not load your routes'))
+      .finally(() => setLoadingRoutes(false));
+  }, [user, showToast]);
 
-  const from = direction === 'to_campus' ? home : CAMPUS;
-  const to = direction === 'to_campus' ? CAMPUS : home;
+  const selectedRoute = routes.find((r) => r.id === selectedId);
 
-  const handleSearch = useCallback(async () => {
+  const search = useCallback(async (routeId) => {
+    if (!routeId) return;
     setLoading(true);
-    setError(null);
     setHasSearched(true);
+    setMatches([]);
     try {
-      const result = await ridesApi.getAll({ from, to });
-      const list = Array.isArray(result) ? result : result.rides || [];
-      setRides(
-        list.map((r) => ({
-          ...r,
-          from_location: r.from?.name || r.from_location || 'Pickup',
-          to_location: r.to?.name || r.to_location || CAMPUS,
-          time: r.departureTime ? new Date(r.departureTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '',
-          price: r.fare ?? r.price ?? 0,
-        })),
-      );
+      const res = await routesApi.getMatches(routeId);
+      setMatches(res.matches || []);
     } catch (err) {
-      setError(err.message || 'Could not load rides. Please try again.');
-      setRides([]);
+      showToast?.(err.message || 'Could not load matches');
     }
     setLoading(false);
-  }, [from, to]);
+  }, [showToast]);
 
-  const handleBook = async (rideId) => {
-    if (!user) { showToast?.('Please log in to book a ride'); return; }
+  // Auto-search whenever the selected route changes.
+  useEffect(() => { if (selectedId) search(selectedId); }, [selectedId, search]);
+
+  const request = async (m) => {
+    setRequestingId(m.routeId);
     try {
-      const res = await bookingsApi.create(rideId);
-      showToast?.(res?.message || 'Booking requested — fare held in escrow. See it under Bookings.');
-      handleSearch();
+      await routesApi.connect(m.routeId, selectedId);
+      setRequestedIds((prev) => new Set(prev).add(m.routeId));
+      showToast?.(`Request sent to ${m.user?.name || 'the student'} ✅ Track it under Requests.`);
     } catch (err) {
-      if (err.code === 'NOT_VERIFIED') { showToast?.('Verify your student ID first to book'); onNavigate?.('verification'); }
-      else if (err.code === 'INSUFFICIENT_FUNDS') { showToast?.('Not enough wallet balance — top up in Wallet'); onNavigate?.('wallet'); }
-      else showToast?.(err.message || 'Booking failed');
+      if (err.code === 'DUPLICATE') {
+        setRequestedIds((prev) => new Set(prev).add(m.routeId));
+        showToast?.('You already have a request with this student.');
+      } else if (err.code === 'NOT_VERIFIED') {
+        showToast?.('Verify your student ID first');
+        onNavigate?.('verification');
+      } else {
+        showToast?.(err.message || 'Could not send request');
+      }
     }
+    setRequestingId(null);
   };
 
-  const Endpoint = ({ icon, label, place }) => (
-    <div style={{ flex: 1, background: '#f8fafc', borderRadius: '0.5rem', padding: '0.6rem 0.75rem', minWidth: 0 }}>
-      <div style={{ fontSize: '0.68rem', color: '#94a3b8', fontWeight: 600 }}>{label}</div>
-      <div style={{ fontSize: '0.85rem', fontWeight: 600, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-        {icon} {place || '—'}
-      </div>
+  const header = (
+    <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', marginBottom: '1rem' }}>
+      <button className="btn-icon" onClick={onBack}>←</button>
+      <h2 style={{ fontSize: '1.1rem', fontWeight: 600 }}>🔍 Find a Ride</h2>
     </div>
   );
-  Endpoint.propTypes = { icon: PropTypes.string, label: PropTypes.string, place: PropTypes.string };
+
+  if (!user) {
+    return (
+      <>
+        {header}
+        <div className="card" style={{ padding: '1.5rem', textAlign: 'center' }}>
+          <p style={{ marginBottom: '1rem' }}>Log in to find commuters going your way.</p>
+          <button className="btn btn-primary" onClick={() => onNavigate?.('login')}>Log in / Sign up</button>
+        </div>
+      </>
+    );
+  }
+
+  if (loadingRoutes) {
+    return (<>{header}<Loading text="Loading your routes…" /></>);
+  }
+
+  // No routes yet → matching needs at least one of your own routes to compare against.
+  if (!routes.length) {
+    return (
+      <>
+        {header}
+        <div className="card" style={{ padding: '1.5rem', textAlign: 'center' }}>
+          <div style={{ fontSize: '2.5rem', marginBottom: '0.5rem' }}>🛣️</div>
+          <h3 style={{ marginBottom: '0.4rem' }}>Set up a commute route first</h3>
+          <p style={{ fontSize: '0.9rem', color: '#6d6d6d', marginBottom: '1rem' }}>
+            Tell us your home suburb and the days you travel. We then match you with a
+            student going the same way and suggest a pickup point.
+          </p>
+          <button className="btn btn-primary" onClick={() => onNavigate?.('routes')}>Set up my route</button>
+        </div>
+      </>
+    );
+  }
+
+  const iAmRider = selectedRoute?.role === 'rider';
 
   return (
     <>
-      <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', marginBottom: '1rem' }}>
-        <button className="btn-icon" onClick={onBack}>←</button>
-        <h2 style={{ fontSize: '1.1rem', fontWeight: '600' }}>🔍 Find a Ride</h2>
-      </div>
-
+      {header}
       <p style={{ fontSize: '0.82rem', color: '#6d6d6d', margin: '-0.25rem 0 0.75rem' }}>
-        Every trip runs between your home and La Trobe. Pick a direction — you and the driver sort out the
-        exact pickup spot &amp; time on the phone. For automatic matching, set up a{' '}
-        <button className="link-btn" onClick={() => onNavigate?.('routes')}>commute route</button>.
+        These are live matches for your route — students going your way who share your days.
+        Send a request; once they accept you&apos;ll see the pickup spot &amp; contact under{' '}
+        <button className="link-btn" onClick={() => onNavigate?.('connections')}>Requests</button>.
       </p>
 
       <div className="search-section">
-        {/* Direction toggle — the only choice; endpoints are fixed. */}
-        <div style={{ display: 'flex', gap: '0.5rem', marginBottom: '0.75rem' }}>
-          {[['to_campus', '➡️ To campus'], ['from_campus', '⬅️ Back home']].map(([d, lbl]) => (
-            <button
-              key={d}
-              type="button"
-              className={`btn ${direction === d ? 'btn-primary' : 'btn-outline'}`}
-              style={{ flex: 1 }}
-              onClick={() => setDirection(d)}
-            >
-              {lbl}
-            </button>
+        {/* Which of my routes to match against (a rider route finds drivers; a driver route finds riders). */}
+        <label className="form-label">Matching for my route</label>
+        <select
+          className="form-input"
+          value={selectedId ?? ''}
+          onChange={(e) => setSelectedId(Number(e.target.value))}
+        >
+          {routes.map((r) => (
+            <option key={r.id} value={r.id}>
+              {r.role === 'driver' ? '🚗 Driver' : '🧍 Rider'} · {r.origin?.name || 'Home'} → La Trobe
+            </option>
           ))}
-        </div>
-
-        {!home ? (
-          <div className="card" style={{ padding: '0.9rem', background: '#fff7ed', border: '1px solid #fed7aa' }}>
-            <p style={{ fontSize: '0.85rem', color: '#92400e', margin: '0 0 0.6rem' }}>
-              Set your home first so we know where you travel from.
-            </p>
-            <button className="btn btn-primary btn-sm" onClick={() => onNavigate?.('routes')}>Set up my route</button>
-          </div>
-        ) : (
-          <>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
-              <Endpoint icon="📍" label="From" place={from} />
-              <span style={{ color: '#94a3b8' }}>→</span>
-              <Endpoint icon="🎓" label="To" place={to} />
-            </div>
-
-            <div className="form-group" style={{ marginTop: '0.75rem' }}>
-              <label className="form-label">Date</label>
-              <input type="date" className="form-input" value={date} onChange={(e) => setDate(e.target.value)} />
-            </div>
-
-            <button className="btn btn-primary" style={{ marginTop: '0.5rem', width: '100%' }} onClick={handleSearch} disabled={loading}>
-              {loading ? 'Searching...' : '🔍 Search Rides'}
-            </button>
-          </>
-        )}
+        </select>
+        <p style={{ fontSize: '0.75rem', color: '#94a3b8', margin: '0.5rem 0 0' }}>
+          {iAmRider
+            ? 'Showing drivers heading your way.'
+            : 'Showing riders along your route you could pick up.'}
+        </p>
+        <button
+          className="btn btn-primary"
+          style={{ marginTop: '0.75rem', width: '100%' }}
+          onClick={() => search(selectedId)}
+          disabled={loading}
+        >
+          {loading ? 'Searching…' : '🔍 Refresh matches'}
+        </button>
       </div>
 
       {loading ? (
-        <Loading text="Searching for rides..." />
-      ) : hasSearched ? (
-        rides.length > 0 ? (
-          <div className="rides-section">
-            <h3>🚗 Available Rides ({rides.length})</h3>
-            {rides.map((ride) => (
-              <RideCard key={ride.id} ride={ride} onBook={handleBook} onView={() => onNavigate?.('bookings')} />
-            ))}
-          </div>
-        ) : (
-          <div className="empty-state">
-            <div className="empty-icon">🔍</div>
-            <h3>No rides found</h3>
-            <p>No drivers on this route yet — set up a commute route to get auto-matched.</p>
-          </div>
-        )
-      ) : null}
+        <Loading text="Finding commuters along your way…" />
+      ) : hasSearched && matches.length === 0 ? (
+        <div className="empty-state">
+          <div className="empty-icon">🔍</div>
+          <h3>No matches yet</h3>
+          <p>
+            No {iAmRider ? 'drivers' : 'riders'} sharing your days &amp; corridor right now. Try adding more
+            commute days on your route, or check back soon as more students join.
+          </p>
+        </div>
+      ) : matches.length > 0 ? (
+        <div className="rides-section">
+          <h3 style={{ fontSize: '1rem', margin: '0.25rem 0 0.75rem' }}>
+            {iAmRider ? '🚗' : '🧍'} {matches.length} match{matches.length > 1 ? 'es' : ''} on your way
+          </h3>
+          {matches.map((m) => {
+            const done = requestedIds.has(m.routeId);
+            return (
+              <div key={m.routeId} className="card" style={{ padding: '0.9rem', marginBottom: '0.75rem' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.7rem' }}>
+                  <div style={{
+                    flex: '0 0 auto', width: 38, height: 38, borderRadius: 10, color: '#fff',
+                    fontWeight: 800, fontSize: '0.85rem', display: 'flex', alignItems: 'center',
+                    justifyContent: 'center', background: GRADE_COLORS[m.grade] || '#64748b',
+                  }}>
+                    {m.grade}
+                  </div>
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ fontWeight: 700, fontSize: '0.95rem' }}>
+                      {m.user?.name || (iAmRider ? 'Driver' : 'Rider')}
+                      {m.user?.rating ? <span style={{ color: '#ca8a04', fontWeight: 600, fontSize: '0.8rem' }}> ★ {Number(m.user.rating).toFixed(1)}</span> : null}
+                    </div>
+                    <div style={{ fontSize: '0.78rem', color: '#6d6d6d' }}>
+                      📍 {m.origin?.suburb || m.origin?.name} · {m.detourKm} km detour
+                    </div>
+                  </div>
+                </div>
 
-      {error && <div className="error-message">{error}</div>}
+                {m.meetPoint?.name && (
+                  <div style={{ fontSize: '0.8rem', color: '#0e7c5a', marginTop: '0.5rem' }}>
+                    📌 Suggested pickup: <strong>{m.meetPoint.name}</strong>
+                    {m.meetPoint.kmFromRiderHome != null ? ` (~${m.meetPoint.kmFromRiderHome} km from home)` : ''}
+                  </div>
+                )}
+
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.3rem', marginTop: '0.5rem' }}>
+                  {(m.sharedDays || []).map((d) => (
+                    <span key={d.weekday} style={{
+                      fontSize: '0.7rem', background: 'var(--primary-tint)', color: '#0e7c5a',
+                      padding: '0.15rem 0.5rem', borderRadius: 999, fontWeight: 600,
+                    }}>
+                      {d.day}{d.start_time ? ` ${d.start_time}` : ''}
+                    </span>
+                  ))}
+                </div>
+
+                <button
+                  className="btn btn-primary btn-sm"
+                  style={{ width: '100%', marginTop: '0.7rem' }}
+                  disabled={done || requestingId === m.routeId}
+                  onClick={() => request(m)}
+                >
+                  {done ? '✅ Requested' : requestingId === m.routeId ? '…' : (iAmRider ? 'Request to ride' : 'Offer a ride')}
+                </button>
+              </div>
+            );
+          })}
+        </div>
+      ) : null}
     </>
   );
 };
