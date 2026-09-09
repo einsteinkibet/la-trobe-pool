@@ -23,6 +23,7 @@ const WalletPage = ({ onBack, user, showToast, onBalanceChange }) => {
   const [connect, setConnect] = useState(null); // driver payout account status
 
   const isDriver = !!user?.hasVehicle;
+  const paymentsEnabled = !!data?.paymentsEnabled;
 
   const load = useCallback(async () => {
     if (!user) { setLoading(false); return; }
@@ -38,11 +39,12 @@ const WalletPage = ({ onBack, user, showToast, onBalanceChange }) => {
 
   useEffect(() => { load(); }, [load]);
 
-  // Drivers: check whether their Stripe payout account is ready.
+  // Drivers: check whether their Stripe payout account is ready — but only once we
+  // know payments are switched on, so we don't fire a /payments/* call that 503s.
   useEffect(() => {
-    if (!isDriver) return;
+    if (!isDriver || !paymentsEnabled) { setConnect(null); return; }
     paymentsApi.connectStatus().then(setConnect).catch(() => setConnect(null));
-  }, [isDriver]);
+  }, [isDriver, paymentsEnabled]);
 
   // Top-up → redirect to hosted Stripe Checkout.
   const topUp = async (amount) => {
@@ -119,22 +121,32 @@ const WalletPage = ({ onBack, user, showToast, onBalanceChange }) => {
             </div>
           </div>
 
-          <div className="card" style={{ padding: '1rem', marginBottom: '1rem' }}>
-            <h4 style={{ marginBottom: '0.5rem' }}>Top up with card / Apple Pay / Google Pay</h4>
-            <div style={{ display: 'flex', gap: '0.5rem' }}>
-              {[10, 20, 50].map((amt) => (
-                <button key={amt} className="btn btn-primary btn-sm" style={{ flex: 1 }}
-                  disabled={busy} onClick={() => topUp(amt)}>
-                  +${amt}
-                </button>
-              ))}
+          {paymentsEnabled ? (
+            <div className="card" style={{ padding: '1rem', marginBottom: '1rem' }}>
+              <h4 style={{ marginBottom: '0.5rem' }}>Top up with card / Apple Pay / Google Pay</h4>
+              <div style={{ display: 'flex', gap: '0.5rem' }}>
+                {[10, 20, 50].map((amt) => (
+                  <button key={amt} className="btn btn-primary btn-sm" style={{ flex: 1 }}
+                    disabled={busy} onClick={() => topUp(amt)}>
+                    +${amt}
+                  </button>
+                ))}
+              </div>
+              <p style={{ fontSize: '0.72rem', color: '#94a3b8', margin: '0.5rem 0 0' }}>
+                You’ll be taken to Stripe’s secure checkout, then back here.
+              </p>
             </div>
-            <p style={{ fontSize: '0.72rem', color: '#94a3b8', margin: '0.5rem 0 0' }}>
-              You’ll be taken to Stripe’s secure checkout, then back here.
-            </p>
-          </div>
+          ) : (
+            <div className="card" style={{ padding: '1rem', marginBottom: '1rem', background: '#fff7ed', border: '1px solid #fed7aa' }}>
+              <h4 style={{ marginBottom: '0.35rem', color: '#92400e' }}>💳 In-app payments coming soon</h4>
+              <p style={{ fontSize: '0.82rem', color: '#92400e', margin: 0 }}>
+                Card top-ups and driver payouts switch on once Stripe is connected. For now, riders
+                and drivers arrange payment directly after a match is accepted.
+              </p>
+            </div>
+          )}
 
-          {isDriver && (
+          {isDriver && paymentsEnabled && (
             <div className="card" style={{ padding: '1rem', marginBottom: '1rem' }}>
               <h4 style={{ marginBottom: '0.35rem' }}>💸 Driver payouts</h4>
               {payoutsReady ? (

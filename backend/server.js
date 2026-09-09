@@ -566,6 +566,9 @@ api.get('/wallet', requireAuth, (req, res) => {
     currency: pay.CURRENCY.toUpperCase(),
     in_escrow: pay.round2(store.heldEscrowForRider(req.user.id)),
     total_earnings: pay.round2(totalEarnings),
+    // Lets the client hide top-up / payout UI (and skip the /payments/* calls
+    // that 503) until Stripe keys are configured.
+    paymentsEnabled: !!pay.enabled,
     ledger: transactions,
     transactions,
   });

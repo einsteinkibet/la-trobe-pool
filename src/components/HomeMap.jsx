@@ -24,6 +24,11 @@ const demandColor = (students) => {
 const HomeMap = ({ height = '260px', onSuburbClick }) => {
   const containerRef = useRef(null);
   const mapRef = useRef(null);
+  // Hold the callback in a ref so a new function identity from the parent doesn't
+  // tear down and rebuild the whole map on every render (which caused Leaflet's
+  // "_leaflet_pos" crash when a zoom animation ended on a removed map).
+  const onSuburbClickRef = useRef(onSuburbClick);
+  onSuburbClickRef.current = onSuburbClick;
 
   useEffect(() => {
     if (mapRef.current || !containerRef.current) return;
@@ -35,6 +40,11 @@ const HomeMap = ({ height = '260px', onSuburbClick }) => {
       zoom: 11,
       scrollWheelZoom: false,
       attributionControl: true,
+      // Disable zoom/fade animation: the demand map is static (no wheel zoom), and
+      // the async animation end-handler crashed if the map unmounted mid-zoom.
+      zoomAnimation: false,
+      fadeAnimation: false,
+      markerZoomAnimation: false,
     });
     mapRef.current = map;
 
@@ -68,7 +78,7 @@ const HomeMap = ({ height = '260px', onSuburbClick }) => {
       circle.bindPopup(
         `<strong>${s.name}</strong><br/>${s.students} students commuting<br/><em>Tap to find rides</em>`
       );
-      if (onSuburbClick) circle.on('click', () => onSuburbClick(s));
+      circle.on('click', () => onSuburbClickRef.current?.(s));
     });
 
     // Campus marker (use a divIcon to avoid Leaflet's broken default-icon path under bundlers)
@@ -87,13 +97,15 @@ const HomeMap = ({ height = '260px', onSuburbClick }) => {
       campus,
       ...SUBURB_DEMAND.map((s) => [s.lat, s.lng]),
     ]);
-    map.fitBounds(bounds, { padding: [24, 24] });
+    map.fitBounds(bounds, { padding: [24, 24], animate: false });
 
     return () => {
       map.remove();
       mapRef.current = null;
     };
-  }, [onSuburbClick]);
+    // Build the map once; the click callback is read from a ref so we never rebuild.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   return (
     <div className="home-map-wrap">
